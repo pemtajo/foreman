@@ -56,6 +56,7 @@ class Foreman::Engine
     startup
     spawn_processes
     watch_for_output
+    watch_for_commands
     sleep 0.1
     watch_for_termination { terminate_gracefully }
     shutdown
@@ -393,6 +394,25 @@ private
               data = reader.gets
               output_with_mutex name_for(@readers.invert[reader]), data
             end
+          end
+        end
+      rescue Exception => ex
+        puts ex.message
+        puts ex.backtrace
+      end
+    end
+  end
+
+  def watch_for_commands
+    Thread.new do
+      begin 
+        loop do
+          sleep 1
+          command_file = File.join(options[:root], '.foreman-command')
+
+          if File.exists?(command_file)
+            cmd = File.read command_file
+            puts "Got command #{cmd}"
           end
         end
       rescue Exception => ex
