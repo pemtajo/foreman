@@ -15,9 +15,11 @@ class Foreman::Process
   # @option options [Hash]   :env ({})  Environment variables to set for this process
   #
   def initialize(command, options={})
+    @pid = nil
     @command = command
     @options = options.dup
 
+    @state = :initial
     @options[:env] ||= {}
   end
 
@@ -46,10 +48,16 @@ class Foreman::Process
   # @returns [Fixnum] pid  The +pid+ of the process
   #
   def run(options={})
+    @pid = do_run options
+    @state = :running
+    @pid
+  end
+
+  def do_run(options)
     env    = @options[:env].merge(options[:env] || {})
     output = options[:output] || $stdout
     runner = "#{Foreman.runner}".shellescape
-    
+
     if Foreman.windows?
       Dir.chdir(cwd) do
         Process.spawn env, expanded_command(env), :out => output, :err => output
@@ -86,10 +94,12 @@ class Foreman::Process
     if Foreman.windows?
       pid && Process.kill(signal, pid)
     else
-      pid && Process.kill("-#{signal}", pid)
+      pid && Process.kill("#{signal}", pid)
     end
   rescue Errno::ESRCH
     false
+  ensure
+    @state = :killed
   end
 
   # Test whether or not this +Process+ is still running
@@ -116,6 +126,10 @@ class Foreman::Process
     File.expand_path(@options[:cwd] || ".")
   end
 
+  def killed?
+    @state == :killed
+  end
+
 private
 
   def spawn_args(env, argv, options)
@@ -124,6 +138,10 @@ private
     args += argv
     args << options
     args
+  end
+
+  def pid
+    @pid || raise("Process #@command is not running")
   end
 
 end

@@ -406,26 +406,45 @@ private
   def watch_for_commands
     Thread.new do
       begin 
+        command_file = File.join(options[:root], '.foreman-command')
         loop do
           sleep 1
-          command_file = File.join(options[:root], '.foreman-command')
 
           if File.exists?(command_file)
-            cmd = File.read command_file
-            puts "Got command #{cmd}"
+            cmd, project = File.read(command_file).split ' '
+            case cmd
+            when "stop"
+              kill_process project
+            else
+              output "system" "Did not understand command #{cmd}"
+            end
+            File.delete(command_file)
           end
         end
       rescue Exception => ex
         puts ex.message
         puts ex.backtrace
+      ensure
+        File.delete(command_file) rescue nil
       end
     end
   end
 
+  def kill_process project
+    process = @names.invert[project.strip]
+    return unless process
+    output project, "Stopping #{project}"
+    process.kill("SIGTERM")
+    output project, "Stopped #{project}"
+  end
+
   def watch_for_termination
     pid, status = Process.wait2
-    output_with_mutex name_for(pid), termination_message_for(status)
+    process, name = @running[pid]
     @running.delete(pid)
+    watch_for_termination if process.killed?
+
+    output_with_mutex name_for(pid), termination_message_for(status)
     yield if block_given?
     pid
   rescue Errno::ECHILD
