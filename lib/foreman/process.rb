@@ -60,15 +60,15 @@ class Foreman::Process
 
     if Foreman.windows?
       Dir.chdir(cwd) do
-        Process.spawn env, expanded_command(env), :out => output, :err => output
+        Process.spawn env, expanded_command(env), :out => output, :err => output, :new_pgroup => true
       end
     elsif Foreman.jruby_18? || Foreman.ruby_18?
       require "posix/spawn"
       wrapped_command = "#{runner} -d '#{cwd.shellescape}' -p -- #{expanded_command(env)}"
-      POSIX::Spawn.spawn(*spawn_args(env, wrapped_command.shellsplit, {:out => output, :err => output}))
+      POSIX::Spawn.spawn(*spawn_args(env, wrapped_command.shellsplit, {:out => output, :err => output, :pgroup => true}))
     else
       wrapped_command = "#{runner} -d '#{cwd.shellescape}' -p -- #{command}"
-      Process.spawn env, wrapped_command, :out => output, :err => output
+      Process.spawn env, wrapped_command, :out => output, :err => output, :pgroup => true
     end
   end
 
@@ -94,7 +94,7 @@ class Foreman::Process
     if Foreman.windows?
       pid && Process.kill(signal, pid)
     else
-      pid && Process.kill("#{signal}", pid)
+      pid && Process.kill("-#{signal}", pid)
     end
   rescue Errno::ESRCH
     false
