@@ -412,9 +412,12 @@ private
 
           if File.exists?(command_file)
             cmd, project = File.read(command_file).split ' '
+            process = @names.invert[project.strip]
             case cmd
             when "stop"
-              kill_process project
+              kill_process process, project
+            when "restart"
+              restart_process process, project
             else
               output "system" "Did not understand command #{cmd}"
             end
@@ -430,12 +433,35 @@ private
     end
   end
 
-  def kill_process project
-    process = @names.invert[project.strip]
+  def kill_process process, name
     return unless process
-    output project, "Stopping #{project}"
+    output name, "Stopping #{name}"
     process.kill("SIGTERM")
-    output project, "Stopped #{project}"
+    output name, "Stopped #{name}"
+  end
+
+  def restart_process process, name
+    return unless process
+    output name, "Restart #{name}"
+    process.kill("SIGTERM")
+    start_process process
+    output name, "Restarted #{name}"
+  end
+
+  def start_process process
+    n = 1 # FIXME
+    reader, writer = create_pipe
+    begin
+      pid = process.run(:output => writer, :env => {
+        "PORT" => port_for(process, n).to_s,
+        "PS" => name_for_index(process, n)
+      })
+      writer.puts "started with pid #{pid}"
+    rescue Errno::ENOENT
+      writer.puts "unknown command: #{process.command}"
+    end
+    @running[pid] = [process, n]
+    @readers[pid] = reader
   end
 
   def watch_for_termination
