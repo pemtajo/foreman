@@ -187,9 +187,11 @@ class Foreman::Engine
         end
       end
     else
-      begin
-        Process.kill signal, *@running.keys unless @running.empty?
-      rescue Errno::ESRCH, Errno::EPERM
+      @running.keys.each do |pid|
+        begin
+          Process.kill "-#{signal}", pid
+        rescue Errno::ESRCH, Errno::EPERM
+        end
       end
     end
   end
